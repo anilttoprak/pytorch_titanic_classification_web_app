@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Titanic Survival Predictor</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #020204;
+      --surface:  rgba(255,255,255,0.03);
+      --border:   rgba(255,255,255,0.08);
+      --border-h: rgba(139,92,246,0.5);
+      --text:     #f0f0ff;
+      --muted:    rgba(255,255,255,0.4);
+      --cyan:     #22d3ee;
+      --purple:   #a855f7;
+      --magenta:  #e879f9;
+      --survive:  #10b981;
+      --die:      #f43f5e;
+      --r:        14px;
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ── Beam Background ── */
+    #beams {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    #beams svg {
+      width: 100%; height: 100%;
+      position: absolute; inset: 0;
+    }
+    .beam {
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+    }
+    @keyframes beam-flow {
+      0%   { stroke-dashoffset: 1000; opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { stroke-dashoffset: 0;    opacity: 0; }
+    }
+
+    /* ── Dot grid ── */
+    #beams::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+
+    /* ── Spotlight follow cursor ── */
+    #spotlight {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      background: radial-gradient(600px circle at var(--mx,50%) var(--my,50%),
+        rgba(139,92,246,0.10) 0%,
+        transparent 70%);
+      transition: background 0.05s linear;
+    }
+
+    /* ── Layout ── */
+    .page {
+      position: relative;
+      z-index: 2;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 60px 16px 80px;
+    }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 99px;
+      border: 1px solid rgba(139,92,246,0.35);
+      background: rgba(139,92,246,0.08);
+      font-size: 0.75rem;
+      letter-spacing: .06em;
+      color: #c4b5fd;
+      margin-bottom: 24px;
+      backdrop-filter: blur(8px);
+    }
+    .badge-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #a855f7;
+      box-shadow: 0 0 8px #a855f7;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:.5; transform:scale(1.4); }
+    }
+
+    /* ── Gradient Heading ── */
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 3.8rem);
+      font-weight: 800;
+      line-height: 1.1;
+      text-align: center;
+      letter-spacing: -.02em;
+      background: linear-gradient(135deg, #e0e7ff 0%, #a78bfa 40%, #22d3ee 80%, #e0e7ff 100%);
+      background-size: 200% 200%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: grad-shift 6s ease infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes grad-shift {
+      0%,100% { background-position: 0% 50%; }
+      50%      { background-position: 100% 50%; }
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: .95rem;
+      text-align: center;
+      max-width: 400px;
+      line-height: 1.6;
+      margin-bottom: 48px;
+    }
+    .subtitle span {
+      color: #a78bfa;
+      font-weight: 500;
+    }
+
+    /* ── Glass Card ── */
+    .card {
+      width: 100%;
+      max-width: 580px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 36px 32px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.03) inset,
+        0 24px 80px rgba(0,0,0,0.5);
+      position: relative;
+      overflow: hidden;
+    }
+    /* top glow line */
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 10%; right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(139,92,246,0.6), transparent);
+    }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media(max-width:480px) { .grid { grid-template-columns: 1fr; } }
+    .full { grid-column: 1/-1; }
+
+    /* ── Field ── */
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: .04em;
+    }
+
+    input, select {
+      appearance: none;
+      -webkit-appearance: none;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: .92rem;
+      padding: 11px 14px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s, background .2s;
+      width: 100%;
+    }
+    input::placeholder { color: rgba(255,255,255,0.2); }
+    input:focus, select:focus {
+      border-color: rgba(139,92,246,0.6);
+      background: rgba(139,92,246,0.06);
+      box-shadow: 0 0 0 3px rgba(139,92,246,0.15);
+    }
+    select option { background: #0e0e1a; color: var(--text); }
+
+    /* select arrow */
+    .select-wrap { position: relative; }
+    .select-wrap::after {
+      content: '';
+      position: absolute;
+      right: 13px; top: 50%;
+      transform: translateY(-50%);
+      width: 0; height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid rgba(255,255,255,0.3);
+      pointer-events: none;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 24px 0;
+    }
+
+    /* ── Submit Button ── */
+    .btn-wrap { position: relative; margin-top: 4px; }
+
+    /* animated border */
+    .btn-wrap::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 11px;
+      background: linear-gradient(135deg, #6366f1, #a855f7, #22d3ee, #6366f1);
+      background-size: 300% 300%;
+      animation: border-spin 4s linear infinite;
+      opacity: 0;
+      transition: opacity .3s;
+    }
+    .btn-wrap:hover::before { opacity: 1; }
+    @keyframes border-spin {
+      0%   { background-position: 0% 50%; }
+      100% { background-position: 300% 50%; }
+    }
+
+    button[type="submit"] {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      padding: 14px;
+      border: 1px solid rgba(139,92,246,0.4);
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(99,102,241,.25), rgba(139,92,246,.25));
+      color: #e0e7ff;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    button[type="submit"]:hover {
+      background: linear-gradient(135deg, rgba(99,102,241,.4), rgba(139,92,246,.4));
+    }
+    button[type="submit"]:active { transform: scale(.98); }
+    button[type="submit"]:disabled { opacity:.4; cursor:not-allowed; }
+
+    /* ── Error ── */
+    .error-box {
+      margin-top: 16px;
+      background: rgba(244,63,94,.08);
+      border: 1px solid rgba(244,63,94,.3);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: .88rem;
+      color: #fda4af;
+      display: none;
+    }
+
+    /* ── Result Card ── */
+    #result {
+      margin-top: 20px;
+      border-radius: 14px;
+      padding: 24px;
+      display: none;
+      animation: slide-up .4s cubic-bezier(.22,1,.36,1);
+      position: relative;
+      overflow: hidden;
+    }
+    @keyframes slide-up {
+      from { opacity:0; transform:translateY(16px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    #result.survived {
+      background: rgba(16,185,129,.06);
+      border: 1px solid rgba(16,185,129,.25);
+    }
+    #result.died {
+      background: rgba(244,63,94,.06);
+      border: 1px solid rgba(244,63,94,.25);
+    }
+
+    /* result glow line */
+    #result::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 15%; right: 15%;
+      height: 1px;
+    }
+    #result.survived::before { background: linear-gradient(90deg, transparent, rgba(16,185,129,.7), transparent); }
+    #result.died::before     { background: linear-gradient(90deg, transparent, rgba(244,63,94,.7), transparent); }
+
+    .result-top {
+      display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
+    }
+    .result-icon-wrap {
+      width: 52px; height: 52px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; flex-shrink: 0;
+    }
+    .survived .result-icon-wrap {
+      background: rgba(16,185,129,.15);
+      border: 1px solid rgba(16,185,129,.3);
+      box-shadow: 0 0 20px rgba(16,185,129,.2);
+    }
+    .died .result-icon-wrap {
+      background: rgba(244,63,94,.15);
+      border: 1px solid rgba(244,63,94,.3);
+      box-shadow: 0 0 20px rgba(244,63,94,.2);
+    }
+
+    .result-verdict {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -.01em;
+    }
+    .survived .result-verdict { color: #6ee7b7; }
+    .died     .result-verdict { color: #fda4af; }
+
+    .result-conf {
+      font-size: .8rem;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    /* ── Probability bars ── */
+    .prob-bars { display: flex; flex-direction: column; gap: 12px; }
+
+    .bar-row { display: flex; flex-direction: column; gap: 5px; }
+    .bar-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: .78rem;
+    }
+    .bar-meta-left {
+      display: flex; align-items: center; gap: 6px;
+      color: rgba(255,255,255,.5);
+    }
+    .dot { width:7px; height:7px; border-radius:50%; }
+    .dot.s { background:#10b981; box-shadow:0 0 6px #10b981; }
+    .dot.d { background:#f43f5e; box-shadow:0 0 6px #f43f5e; }
+
+    .bar-pct { font-weight: 700; font-size: .88rem; }
+    .survived .bar-pct.s-pct { color: #6ee7b7; }
+    .died     .bar-pct.d-pct { color: #fda4af; }
+
+    .bar-track {
+      height: 6px;
+      background: rgba(255,255,255,.06);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      width: 0%;
+      transition: width .8s cubic-bezier(.22,1,.36,1);
+    }
+    .bar-fill.s { background: linear-gradient(90deg, #059669, #10b981, #34d399); }
+    .bar-fill.d { background: linear-gradient(90deg, #be123c, #f43f5e, #fb7185); }
+
+    /* ── Spinner ── */
+    .spin {
+      width: 17px; height: 17px;
+      border: 2px solid rgba(255,255,255,.15);
+      border-top-color: #a78bfa;
+      border-radius: 50%;
+      animation: spin .65s linear infinite;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- Beam background -->
+<div id="beams">
+  <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="b1" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stop-color="#18CCFC" stop-opacity="0"/>
+        <stop offset="30%"  stop-color="#6344F5"/>
+        <stop offset="70%"  stop-color="#AE48FF"/>
+        <stop offset="100%" stop-color="#18CCFC" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="b2" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stop-color="#AE48FF" stop-opacity="0"/>
+        <stop offset="40%"  stop-color="#22d3ee"/>
+        <stop offset="80%"  stop-color="#6344F5"/>
+        <stop offset="100%" stop-color="#AE48FF" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="b3" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stop-color="#6344F5" stop-opacity="0"/>
+        <stop offset="50%"  stop-color="#e879f9"/>
+        <stop offset="100%" stop-color="#6344F5" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <!-- beam paths -->
+    <path class="beam" d="M-100,200 C300,180 600,400 900,350 S1300,200 1540,300" stroke="url(#b1)" stroke-dasharray="600" stroke-dashoffset="600" style="animation:beam-flow 14s ease-in-out 0s infinite"/>
+    <path class="beam" d="M-100,280 C200,260 500,480 850,420 S1200,280 1540,380" stroke="url(#b1)" stroke-dasharray="600" stroke-dashoffset="600" style="animation:beam-flow 16s ease-in-out 1s infinite"/>
+    <path class="beam" d="M-100,180 C250,160 550,380 870,330 S1280,180 1540,260" stroke="url(#b2)" stroke-dasharray="500" stroke-dashoffset="500" style="animation:beam-flow 13s ease-in-out 2s infinite"/>
+    <path class="beam" d="M-100,500 C300,460 650,620 950,560 S1300,480 1540,540" stroke="url(#b2)" stroke-dasharray="550" stroke-dashoffset="550" style="animation:beam-flow 18s ease-in-out 3s infinite"/>
+    <path class="beam" d="M-100,600 C250,570 550,730 900,670 S1280,590 1540,650" stroke="url(#b3)" stroke-dasharray="480" stroke-dashoffset="480" style="animation:beam-flow 15s ease-in-out 1.5s infinite"/>
+    <path class="beam" d="M-100,120 C350,100 700,300 1000,250 S1350,140 1540,200" stroke="url(#b3)" stroke-dasharray="520" stroke-dashoffset="520" style="animation:beam-flow 17s ease-in-out 4s infinite"/>
+    <path class="beam" d="M-100,750 C200,720 600,850 950,780 S1300,720 1540,780" stroke="url(#b1)" stroke-dasharray="460" stroke-dashoffset="460" style="animation:beam-flow 20s ease-in-out 0.5s infinite"/>
+    <path class="beam" d="M-100,400 C300,370 650,520 1000,460 S1350,390 1540,450" stroke="url(#b2)" stroke-dasharray="510" stroke-dashoffset="510" style="animation:beam-flow 12s ease-in-out 2.5s infinite"/>
+  </svg>
+</div>
+
+<!-- Spotlight -->
+<div id="spotlight"></div>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="badge">
+    <span class="badge-dot"></span>
+    PyTorch · Deep Learning Model
+  </div>
+
+  <h1>Titanic Survival<br/>Predictor</h1>
+  <p class="subtitle">
+    Enter passenger details to predict survival probability using a
+    <span>trained neural network</span> on the Titanic dataset.
+  </p>
+
+  <!-- Form Card -->
+  <div class="card">
+
+    <div class="section-label">Passenger Info</div>
+
+    <form id="form">
+      <div class="grid">
+
+        <div class="field">
+          <label>Passenger Class</label>
+          <div class="select-wrap">
+            <select id="pclass" required>
+              <option value="">Select class</option>
+              <option value="1">1st Class — Upper</option>
+              <option value="2">2nd Class — Middle</option>
+              <option value="3">3rd Class — Lower</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Sex</label>
+          <div class="select-wrap">
+            <select id="sex" required>
+              <option value="">Select sex</option>
+              <option value="0">Male</option>
+              <option value="1">Female</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Age</label>
+          <input type="number" id="age" min="0" max="120" step="0.5" placeholder="e.g. 28" required/>
+        </div>
+
+        <div class="field">
+          <label>Fare (£)</label>
+          <input type="number" id="fare" min="0" step="0.01" placeholder="e.g. 32.20" required/>
+        </div>
+
+        <div class="field">
+          <label>Siblings / Spouses</label>
+          <input type="number" id="sibsp" min="0" max="20" step="1" placeholder="e.g. 1" required/>
+        </div>
+
+        <div class="field">
+          <label>Parents / Children</label>
+          <input type="number" id="parch" min="0" max="20" step="1" placeholder="e.g. 0" required/>
+        </div>
+
+        <div class="field full">
+          <label>Port of Embarkation</label>
+          <div class="select-wrap">
+            <select id="embarked" required>
+              <option value="">Select port</option>
+              <option value="C">Cherbourg (C)</option>
+              <option value="Q">Queenstown (Q)</option>
+              <option value="S">Southampton (S)</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="btn-wrap">
+        <button type="submit" id="btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <span id="btn-label">Predict Survival</span>
+        </button>
+      </div>
+    </form>
+
+    <div class="error-box" id="error-box"></div>
+
+    <!-- Result -->
+    <div id="result">
+      <div class="result-top">
+        <div class="result-icon-wrap" id="r-icon"></div>
+        <div>
+          <div class="result-verdict" id="r-verdict"></div>
+          <div class="result-conf"   id="r-conf"></div>
+        </div>
+      </div>
+      <div class="prob-bars">
+        <div class="bar-row">
+          <div class="bar-meta">
+            <div class="bar-meta-left"><span class="dot s"></span>Survival probability</div>
+            <span class="bar-pct s-pct" id="s-pct">0%</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill s" id="s-bar"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-meta">
+            <div class="bar-meta-left"><span class="dot d"></span>Death probability</div>
+            <span class="bar-pct d-pct" id="d-pct">0%</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill d" id="d-bar"></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /card -->
+</div><!-- /page -->
+
+<script>
+  // ── Spotlight ──────────────────────────────────────────────────────────────
+  const spotlight = document.getElementById('spotlight');
+  document.addEventListener('mousemove', e => {
+    spotlight.style.setProperty('--mx', e.clientX + 'px');
+    spotlight.style.setProperty('--my', e.clientY + 'px');
+  });
+
+  // ── Form ───────────────────────────────────────────────────────────────────
+  const form    = document.getElementById('form');
+  const btn     = document.getElementById('btn');
+  const btnLbl  = document.getElementById('btn-label');
+  const errBox  = document.getElementById('error-box');
+  const result  = document.getElementById('result');
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    errBox.style.display = 'none';
+    result.style.display = 'none';
+
+    const embarked = document.getElementById('embarked').value;
+    const payload  = {
+      pclass:     parseInt(document.getElementById('pclass').value),
+      sex:        parseInt(document.getElementById('sex').value),
+      age:        parseFloat(document.getElementById('age').value),
+      sibsp:      parseInt(document.getElementById('sibsp').value),
+      parch:      parseInt(document.getElementById('parch').value),
+      fare:       parseFloat(document.getElementById('fare').value),
+      embarked_q: embarked === 'Q' ? 1 : 0,
+      embarked_s: embarked === 'S' ? 1 : 0,
+    };
+
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spin"></div><span>Predicting…</span>';
+
+    try {
+      const res = await fetch('/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Prediction failed');
+      render(await res.json());
+    } catch(err) {
+      errBox.textContent = '⚠  ' + err.message;
+      errBox.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>Predict Survival</span>`;
+    }
+  });
+
+  function render(data) {
+    const sp = Math.round(data.survival_probability * 100);
+    const dp = Math.round(data.death_probability    * 100);
+
+    result.className = data.survived ? 'survived' : 'died';
+    document.getElementById('r-icon').textContent    = data.survived ? '✦' : '✗';
+    document.getElementById('r-verdict').textContent = data.survived
+      ? 'This passenger SURVIVED'
+      : 'This passenger did NOT survive';
+    document.getElementById('r-conf').textContent =
+      `Model confidence: ${Math.max(sp, dp)}%  ·  Probability score: ${data.survival_probability}`;
+
+    document.getElementById('s-pct').textContent = sp + '%';
+    document.getElementById('d-pct').textContent = dp + '%';
+
+    result.style.display = 'block';
+    requestAnimationFrame(() => {
+      document.getElementById('s-bar').style.width = sp + '%';
+      document.getElementById('d-bar').style.width = dp + '%';
+    });
+  }
+</script>
+</body>
+</html>
