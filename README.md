@@ -58,5 +58,4 @@ embarked = 'S'      # 'S', 'C', 'Q'
 ├── pytorch_titanic.ipynb   # Ana notebook
 ├── data/
 │   └── Titanic-Dataset.csv
-└── README.md
 ```
