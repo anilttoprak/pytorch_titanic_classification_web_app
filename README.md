@@ -1,40 +1,69 @@
 # Titanic Survival Classification — PyTorch
 
-Binary sınıflandırma modeli: Titanic yolcularının hayatta kalıp kalmadığını tahmin eder.
+PyTorch ile binary sınıflandırma: Titanic yolcularının hayatta kalıp kalmadığını tahmin eder.
 
-## Proje Özeti
+## Sonuçlar
 
-| | |
+| Metrik | Değer |
 |---|---|
-| **Veri Seti** | [Titanic Dataset](https://www.kaggle.com/datasets/yasserh/titanic-dataset) — 891 yolcu, 12 özellik |
-| **Görev** | Binary Classification (Survived: 0 / 1) |
-| **Model** | PyTorch Neural Network (3 katman) |
-| **Test Accuracy** | ~%82 |
+| Train Accuracy | ~%85 |
+| Test Accuracy | ~%83 |
+| Loss Fonksiyonu | BCEWithLogitsLoss |
+| Optimizer | Adam (lr=0.01) |
+| Epoch | 100 |
 
 ## Model Mimarisi
 
 ```
-Input (8) → Linear(8→12) → Linear(12→12) → Linear(12→1) → Sigmoid
+Input(8) → Linear(8→20) → ReLU → Linear(20→20) → ReLU → Linear(20→1) → Sigmoid
 ```
 
-Loss: `BCEWithLogitsLoss` | Optimizer: `Adam (lr=0.01)`
+## Özellikler (8 Feature)
 
-## Preprocessing Adımları
+| Feature | Açıklama | İşlem |
+|---|---|---|
+| Pclass | Yolcu sınıfı (1/2/3) | — |
+| Sex | Cinsiyet | Binary encoding (male=0, female=1) |
+| Age | Yaş | Median ile dolduruldu → StandardScaler |
+| SibSp | Kardeş/eş sayısı | StandardScaler |
+| Parch | Ebeveyn/çocuk sayısı | StandardScaler |
+| Fare | Bilet ücreti | log1p → StandardScaler |
+| Embarked_Q | Queenstown'dan bindi | One-hot encoding |
+| Embarked_S | Southampton'dan bindi | One-hot encoding |
 
-1. Gereksiz sütunları at (`PassengerId`, `Name`, `Ticket`, `Cabin`)
-2. Eksik değerleri doldur (`Age` → median, `Embarked` → mode)
-3. Encoding (`Sex` → binary, `Embarked` → one-hot)
-4. Feature engineering (`Fare` → log1p dönüşümü)
-5. Scaling (`StandardScaler` — sayısal sütunlar)
+## Notebook İçeriği
 
-## Kullanım
+```
+1. EDA
+   ├── Eksik değer analizi
+   ├── Survived dağılımı
+   ├── Cinsiyet / Sınıf / Yaş / Ücret grafikleri
+   ├── Korelasyon matrisi
+   └── Pairplot
+
+2. Preprocessing
+   ├── 2.1 Gereksiz sütunları at (PassengerId, Name, Ticket, Cabin)
+   ├── 2.2 Eksik değerleri doldur (Age→median, Embarked→mode)
+   ├── 2.3 Outlier analizi (IQR + boxplot)
+   ├── 2.4 Encoding (Sex→binary, Embarked→one-hot)
+   ├── 2.5 Feature engineering (Fare→log1p)
+   └── 2.6 Scaling (StandardScaler)
+
+3. Model Eğitimi (100 epoch)
+4. Confusion Matrix
+5. Feature Importance (Permutation)
+6. Yeni Yolcu Tahmini
+```
+
+## Kurulum
 
 ```bash
 pip install torch pandas numpy scikit-learn matplotlib seaborn torchmetrics
 ```
 
-```python
-# Notebook'u çalıştır
+## Kullanım
+
+```bash
 jupyter notebook pytorch_titanic.ipynb
 ```
 
@@ -48,14 +77,19 @@ sex      = 'male'   # 'male' / 'female'
 age      = 25.0
 sibsp    = 0
 parch    = 0
-fare     = 7.25
-embarked = 'S'      # 'S', 'C', 'Q'
+fare     = 7.25     # £ cinsinden
+embarked = 'S'      # 'S'=Southampton, 'C'=Cherbourg, 'Q'=Queenstown
 ```
 
 ## Dosya Yapısı
 
 ```
 ├── pytorch_titanic.ipynb   # Ana notebook
+├── models/
+│   └── titanic_model.pth   # Kaydedilmiş model ağırlıkları
+├── scaler.pkl              # Kaydedilmiş StandardScaler
 ├── data/
 │   └── Titanic-Dataset.csv
+└── README.md
 ```
+
